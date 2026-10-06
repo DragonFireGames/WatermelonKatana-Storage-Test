@@ -1,6 +1,6 @@
 {
   "serverType": "node",
-  "domain": "http://localhost:3000/",
+  "domain": "https://storage.test/",
   "path": "/",
   "rootfolder": "/",
   "runfile": "/public/index.html",
