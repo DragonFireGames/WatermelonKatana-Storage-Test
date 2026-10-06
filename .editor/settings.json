@@ -4,6 +4,7 @@
   "confirmBeforeReplace": true,
   "confirmBeforeDelete": true,
   "showHiddenFolders": false,
+  "ignoreNodeModules": true,
   "hideBrowserBar": true,
   "browserSettings": {
     "primaryProxy": "https://proxy.dragonfire7z.workers.dev/",

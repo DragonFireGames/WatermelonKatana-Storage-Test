@@ -1,6 +1,10 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const WatermelonKatanaStorage = require("./public/wkstorage.js");
+
+const project = JSON.parse(fs.readFileSync('.editor/project.json', 'utf8'));
+console.log("Project is: "+project.id);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +29,7 @@ function handle(handler) {
 // These routes deliberately mirror the WatermelonKatanaStorage browser client's
 // backend requests. The index page uses the same storage-shaped interface in
 // both modes, so the UI is independent of the implementation.
+app.get("/api/getid", handle(async()=>project));
 app.post("/api/storage/:id/create", handle(async (req) => {
   await getStorage(req).create(req.body || {});
   return { success: true };
@@ -55,3 +60,4 @@ app.get("/api/storage/:id/get_library_manifest", handle(req => getStorage(req).g
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Express server listening on port ${PORT}`);
 });
+

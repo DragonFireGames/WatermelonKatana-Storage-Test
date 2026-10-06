@@ -29,6 +29,10 @@
 <body>
   <h1>WatermelonKatana Storage Test</h1>
 
+
+  <div id="project">
+  </div>
+
   <div class="mode">
     <label>Storage implementation:
       <select id="mode">
@@ -77,6 +81,16 @@
     const modeDescription = document.getElementById("modeDescription");
     const keysElement = document.getElementById("keys");
     const tablesElement = document.getElementById("tables");
+
+    (async function() {
+      var res = await fetch("/api/getid");
+      var project = await res.json();
+      const projectDiv = document.getElementById("project");
+      projectDiv.innerHTML = `
+        <p>Project Name: ${project.name}</p>
+        <p>Project ID: ${project.id}</p>
+      `;
+    })();
 
     function log(value) {
       output.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
