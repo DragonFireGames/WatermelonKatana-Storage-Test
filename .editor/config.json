@@ -1,0 +1,13 @@
+{
+  "serverType": "node",
+  "domain": "http://localhost:3000/",
+  "path": "/",
+  "rootfolder": "/",
+  "runfile": "/public/index.html",
+  "nodeCommand": "npm run start",
+  "cwd": "/",
+  "autoClear": true,
+  "usePeerServer": false,
+  "peerLayer": "m4xljC",
+  "saveEnvironmentVariables": false
+}

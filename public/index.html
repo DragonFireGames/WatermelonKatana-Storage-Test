@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WatermelonKatana Storage Test</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    input, select, button, textarea { font: inherit; padding: 8px 10px; box-sizing: border-box; }
+    button { cursor: pointer; }
+    .mode { padding: 14px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+    .toolbar label { display: flex; gap: 8px; align-items: center; }
+    .storage-panel { border: 1px solid #ccc; border-radius: 8px; overflow: hidden; margin-top: 20px; }
+    .storage-panel > header { padding: 12px 14px; border-bottom: 1px solid #ccc; font-weight: 600; }
+    .storage-panel-body { padding: 14px; }
+    .key-row { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(200px, 1.5fr) auto; gap: 8px; align-items: center; padding: 7px 0; }
+    .key-row + .key-row { border-top: 1px solid #ddd; }
+    .key-row input { width: 100%; }
+    .empty { opacity: .65; padding: 8px 0; }
+    .table-row { border: 1px solid #ccc; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+    .table-name { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 10px 12px; font-weight: 600; }
+    .table-records { padding: 10px 12px; border-top: 1px solid #ccc; overflow-x: auto; }
+    .record { margin: 0 0 8px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    #output { white-space: pre-wrap; background: rgba(127,127,127,.12); padding: 15px; margin-top: 20px; border-radius: 6px; min-height: 40px; }
+  </style>
+</head>
+<body>
+  <h1>WatermelonKatana Storage Test</h1>
+
+  <div class="mode">
+    <label>Storage implementation:
+      <select id="mode">
+        <option value="client">Client side (browser client)</option>
+        <option value="server">Server side (Express + wkstorage)</option>
+      </select>
+    </label>
+    <p id="modeDescription"></p>
+  </div>
+
+  <div class="toolbar">
+    <label>Storage ID <input id="storageId" value="test-project"></label>
+    <button id="create">Create / Initialize</button>
+    <button id="refresh">Refresh</button>
+    <button id="clear">Clear Storage</button>
+  </div>
+
+  <section class="storage-panel">
+    <header>Keys</header>
+    <div class="storage-panel-body">
+      <div id="keys"></div>
+      <div class="toolbar">
+        <button id="addKey">Add key</button>
+        <button id="saveKeys">Save changes</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="storage-panel">
+    <header>Tables</header>
+    <div class="storage-panel-body">
+      <div id="tables"></div>
+      <div class="toolbar">
+        <input id="newTable" placeholder="Table name">
+        <button id="addTable">Create table</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="output">Ready.</div>
+
+  <script src="/wkstorage.js"></script>
+  <script>
+    const output = document.getElementById("output");
+    const mode = document.getElementById("mode");
+    const modeDescription = document.getElementById("modeDescription");
+    const keysElement = document.getElementById("keys");
+    const tablesElement = document.getElementById("tables");
+
+    function log(value) {
+      output.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function getId() {
+      const id = document.getElementById("storageId").value.trim();
+      if (!id) throw new Error("Enter a storage ID.");
+      return id;
+    }
+
+    function displayValue(value) {
+      return typeof value === "string" ? value : JSON.stringify(value);
+    }
+
+    function parseValue(value) {
+      const trimmed = value.trim();
+      if (trimmed === "") return "";
+      try { return JSON.parse(trimmed); } catch (_) { return value; }
+    }
+
+    function clientStorage() {
+      if (typeof WatermelonKatanaStorage !== "function") {
+        throw new Error("WatermelonKatanaStorage browser client was not loaded.");
+      }
+      return new WatermelonKatanaStorage(getId());
+    }
+
+    async function serverRequest(path, options = {}) {
+      const response = await fetch("/api/storage/" + encodeURIComponent(getId()) + "/" + path, {
+        ...options,
+        headers: {
+          ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(options.headers || {})
+        }
+      });
+      if (!response.ok) {
+        let message = response.status + " " + response.statusText;
+        try { const error = await response.json(); if (error.error) message = error.error; } catch (_) {}
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    // The server adapter intentionally exposes the same method surface as
+    // WatermelonKatanaStorage so the UI does not care which implementation is active.
+    function serverStorage() {
+      return {
+        create: initial => serverRequest("create", { method: "POST", body: JSON.stringify(initial || {}) }).then(() => undefined),
+        setKeyValue: (key, value) => serverRequest("set_key_value", { method: "POST", body: JSON.stringify({ key, value }) }),
+        getKeyValue: key => serverRequest("get_key_value?key=" + encodeURIComponent(key)),
+        getKeyValues: () => serverRequest("get_key_values"),
+        removeKeyValue: key => serverRequest("delete_key_value", { method: "DELETE", body: JSON.stringify({ key }) }),
+        populateKeyValues: values => serverRequest("populate_key_values", { method: "PUT", body: JSON.stringify({ key_values_json: JSON.stringify(values) }) }),
+        createTable: name => serverRequest("create_table", { method: "POST", body: JSON.stringify({ table_name: name }) }),
+        getTableNames: () => serverRequest("get_table_names"),
+        removeTable: name => serverRequest("delete_table", { method: "DELETE", body: JSON.stringify({ table_name: name }) }),
+        clearTable: name => serverRequest("populate_tables", { method: "PUT", body: JSON.stringify({ tables_json: JSON.stringify({ [name]: [] }) }) }),
+        readRecords: name => serverRequest("read_records?table_name=" + encodeURIComponent(name)),
+        createRecord: (name, record) => serverRequest("create_record", { method: "POST", body: JSON.stringify({ table_name: name, record_json: JSON.stringify(record) }) }),
+        updateRecord: (name, record) => serverRequest("update_record", { method: "PUT", body: JSON.stringify({ table_name: name, record_json: JSON.stringify(record) }) }),
+        removeRecord: (name, id) => serverRequest("delete_record", { method: "DELETE", body: JSON.stringify({ table_name: name, record_id: id }) }),
+        populateTables: tables => serverRequest("populate_tables", { method: "PUT", body: JSON.stringify({ tables_json: JSON.stringify(tables) }) }),
+        hasData: () => serverRequest("project_has_data"),
+        clearAllData: () => serverRequest("clear_all_data", { method: "DELETE" }),
+        getLibraryManifest: () => serverRequest("get_library_manifest")
+      };
+    }
+
+    function storage() { return mode.value === "client" ? clientStorage() : serverStorage(); }
+
+    async function run(action) {
+      try { log("Working..."); log(await action()); }
+      catch (error) { console.error(error); log("Error: " + error.message); }
+    }
+
+    function updateModeUI() {
+      modeDescription.textContent = mode.value === "client"
+        ? "Uses WatermelonKatanaStorage directly in the browser."
+        : "Uses the Express API, whose server implementation calls the same wkstorage package.";
+      refreshStorage();
+    }
+
+    async function refreshStorage() {
+      try {
+        const current = storage();
+        const [values, tableNames] = await Promise.all([current.getKeyValues(), current.getTableNames()]);
+        renderKeys(values || {});
+        await renderTables(current, tableNames || []);
+        log("Storage refreshed.");
+      } catch (error) {
+        console.error(error);
+        log("Error: " + error.message);
+      }
+    }
+
+    function renderKeys(values) {
+      keysElement.replaceChildren();
+      const entries = Object.entries(values);
+      if (!entries.length) {
+        const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "No keys yet.";
+        keysElement.appendChild(empty); return;
+      }
+      for (const [key, value] of entries) {
+        const row = document.createElement("div"); row.className = "key-row"; row.dataset.originalKey = key;
+        const keyInput = document.createElement("input"); keyInput.className = "key-name"; keyInput.value = key; keyInput.placeholder = "Key";
+        const valueInput = document.createElement("input"); valueInput.className = "key-value"; valueInput.value = displayValue(value); valueInput.placeholder = "Value";
+        const remove = document.createElement("button"); remove.textContent = "Remove";
+        remove.onclick = () => run(async () => { await storage().removeKeyValue(key); await refreshStorage(); return `Removed ${key}.`; });
+        row.append(keyInput, valueInput, remove); keysElement.appendChild(row);
+      }
+    }
+
+    async function saveKeys() {
+      const rows = [...keysElement.querySelectorAll(".key-row")];
+      const current = storage();
+      const seen = new Set();
+      for (const row of rows) {
+        const oldKey = row.dataset.originalKey;
+        const newKey = row.querySelector(".key-name").value.trim();
+        if (!newKey) throw new Error("Key names cannot be empty.");
+        if (seen.has(newKey)) throw new Error(`Duplicate key: ${newKey}`);
+        seen.add(newKey);
+        const value = parseValue(row.querySelector(".key-value").value);
+        if (oldKey && newKey !== oldKey) await current.removeKeyValue(oldKey);
+        await current.setKeyValue(newKey, value);
+      }
+      // Rows removed from the UI are also removed from storage.
+      const stored = await current.getKeyValues();
+      for (const key of Object.keys(stored || {})) {
+        if (!seen.has(key)) await current.removeKeyValue(key);
+      }
+      await refreshStorage();
+      return "Key changes saved.";
+    }
+
+    function addKeyRow() {
+      const row = document.createElement("div"); row.className = "key-row"; row.dataset.originalKey = "";
+      const keyInput = document.createElement("input"); keyInput.className = "key-name"; keyInput.placeholder = "Key";
+      const valueInput = document.createElement("input"); valueInput.className = "key-value"; valueInput.placeholder = "Value";
+      const remove = document.createElement("button"); remove.textContent = "Remove"; remove.onclick = () => row.remove();
+      row.append(keyInput, valueInput, remove); keysElement.appendChild(row); keyInput.focus();
+    }
+
+    async function renderTables(current, tableNames) {
+      tablesElement.replaceChildren();
+      if (!tableNames.length) {
+        const empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "No tables yet.";
+        tablesElement.appendChild(empty); return;
+      }
+      for (const tableName of tableNames) {
+        const wrapper = document.createElement("div"); wrapper.className = "table-row";
+        const header = document.createElement("div"); header.className = "table-name";
+        const name = document.createElement("span"); name.textContent = tableName;
+        const remove = document.createElement("button"); remove.textContent = "Remove table";
+        remove.onclick = () => run(async () => { await current.removeTable(tableName); await refreshStorage(); return `Removed table ${tableName}.`; });
+        header.append(name, remove);
+        const recordsElement = document.createElement("div"); recordsElement.className = "table-records";
+        try {
+          const records = await current.readRecords(tableName);
+          if (!records.length) recordsElement.textContent = "No records.";
+          else for (const record of records) {
+            const item = document.createElement("div"); item.className = "record"; item.textContent = JSON.stringify(record, null, 2); recordsElement.appendChild(item);
+          }
+        } catch (error) { recordsElement.textContent = "Error: " + error.message; }
+        wrapper.append(header, recordsElement); tablesElement.appendChild(wrapper);
+      }
+    }
+
+    document.getElementById("create").onclick = () => run(async () => { await storage().create(); await refreshStorage(); return "Storage initialized."; });
+    document.getElementById("refresh").onclick = () => run(async () => { await refreshStorage(); return "Storage refreshed."; });
+    document.getElementById("clear").onclick = () => run(async () => { await storage().clearAllData(); await refreshStorage(); return "Storage cleared."; });
+    document.getElementById("addKey").onclick = addKeyRow;
+    document.getElementById("saveKeys").onclick = () => run(saveKeys);
+    document.getElementById("addTable").onclick = () => run(async () => {
+      const input = document.getElementById("newTable"); const name = input.value.trim();
+      if (!name) throw new Error("Enter a table name.");
+      await storage().createTable(name); input.value = ""; await refreshStorage(); return `Created table ${name}.`;
+    });
+    mode.addEventListener("change", updateModeUI);
+    updateModeUI();
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "autoSaveOnRun": false,
+  "autoClearTerminal": false,
+  "confirmBeforeReplace": true,
+  "confirmBeforeDelete": true,
+  "showHiddenFolders": false,
+  "hideBrowserBar": true,
+  "browserSettings": {
+    "primaryProxy": "https://proxy.dragonfire7z.workers.dev/",
+    "fallbackProxy": "",
+    "useFallback": false
+  }
+}
