@@ -13,7 +13,7 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   class WatermelonKatanaStorage {
-    static domain = "https://watermelonkatana.onrender.com";
+    static domain = globalThis.__hostOrigin || "https://watermelonkatana.onrender.com";
 
     constructor(id) {
       if (typeof id !== "string" || !/^[\w-]{1,64}$/.test(id)) {
