@@ -29,6 +29,8 @@
 <body>
   <h1>WatermelonKatana Storage Test</h1>
 
+  <div id="user">
+  </div>
 
   <div id="project">
   </div>
@@ -83,8 +85,26 @@
     const tablesElement = document.getElementById("tables");
 
     (async function() {
-      var res = await fetch("/api/getid");
-      var project = await res.json();
+      const domain = window.__hostOrigin || "https://watermelonkatana.onrender.com/";
+      const res = await fetch(domain+"/api/auth/check");
+      const auth = await res.json();
+      const userDiv = document.getElementById("user");
+      if (auth.auth) {
+        const user = auth.user;
+        userDiv.innerHTML = `
+          <p>User Name: ${user.username}</p>
+          <p>User ID: ${user.id}</p>
+        `;
+      } else {
+        userDiv.innerHTML = `
+          <p>User not signed in</p>
+        `;
+      }
+    })();
+
+    (async function() {
+      const res = await fetch("/api/getid");
+      const project = await res.json();
       const projectDiv = document.getElementById("project");
       projectDiv.innerHTML = `
         <p>Project Name: ${project.name}</p>
